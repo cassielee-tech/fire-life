@@ -1,0 +1,53 @@
+{
+  "name": "fire-life",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:sync": "tsx scripts/sync.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:reset": "rm -f data/fire-life.db data/fire-life.db-wal data/fire-life.db-shm && tsx src/db/seed.ts",
+    "demo:seed": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.4",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "^3.10.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  },
+  "packageManager": "pnpm@10.28.2",
+  "description": "Local-first multi-account, multi-currency personal asset management dashboard.",
+  "license": "MIT",
+  "author": "Fire Life contributors",
+  "keywords": [
+    "personal-finance",
+    "fire",
+    "asset-management",
+    "portfolio",
+    "nextjs",
+    "sqlite",
+    "typescript"
+  ]
+}
