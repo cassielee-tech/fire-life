@@ -28,13 +28,14 @@ Fire Life 把分散在银行、券商、海外账户里的现金、存款、理�
 ## 功能
 
 - **多账户、多币种**：银行、券商、现金钱包、海外账户统一管理
+- **总览按账户 / 自定义分类联动筛选**：两个条件可叠加，KPI、配置、走势、明细和 CSV 一起过滤
 - **资产类型全覆盖**：现金、存款、理财、基金、股票、黄金、其他
 - **行情同步**：A 股 / 港股 / 美股 / 场外基金 / 上海金 / 汇率
 - **成本与收益**：成本法、浮动盈亏、当日盈亏、已实现收益、清仓与撤销
 - **收益管理**：按年份查看已实现收益，支持直接填收益或按成本 + 卖出金额补录
 - **自定义分类**：给持仓打分类，资产配置饼图可在资产类型和自定义分类之间切换
 - **历史快照**：每日资产曲线、年度明细、持仓排序
-- **FIRE 计算器**：目标金额、年收入、年支出、年化收益、通胀开关，按月复利估算达成时间
+- **FIRE 计算器**：目标金额、年收入、年支出、年化收益、通胀开关，按月复利估算达成时间；方案可保存到本地数据库，随 JSON 备份恢复
 - **主题**：浅色 / 深色 / 跟随系统
 - **数据备份**：全量 JSON 导出、覆盖式导入、导入前自动备份
 - **CSV 导出**：持仓明细可导出为 CSV
@@ -73,9 +74,9 @@ pnpm start
 
 ## English Overview
 
-Fire Life is a local-first personal finance dashboard for people whose assets are spread across banks, brokers, and currencies. It tracks cash, deposits, wealth products, funds, stocks, and gold in one place; syncs public market data; and supports cost-basis P&L, realized gains, custom categories, daily snapshots, a FIRE calculator, light/dark themes, and full JSON backup/restore.
+Fire Life is a local-first personal finance dashboard for people whose assets are spread across banks, brokers, and currencies. It tracks cash, deposits, wealth products, funds, stocks, and gold in one place; syncs public market data; and supports cost-basis P&L, realized gains, custom categories, daily snapshots, a FIRE calculator with saved local plans, light/dark themes, and full JSON backup/restore.
 
-All data stays in a local SQLite file. There is no account system, no cloud dependency, and no telemetry. Market prices are fetched from public endpoints and can be overridden manually.
+All data stays in a local SQLite file. There is no account system, no cloud dependency, and no telemetry. Market prices are fetched from public endpoints and can be overridden manually. The overview can be filtered by account and/or custom category across KPIs, allocation, trend, holdings, and CSV export.
 
 ```bash
 pnpm install

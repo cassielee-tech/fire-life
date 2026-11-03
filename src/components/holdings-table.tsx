@@ -78,12 +78,14 @@ export function HoldingsTable({
   accountNames,
   categoryNames,
   currency,
+  weightLabel = "占比",
   limit,
 }: {
   valuations: HoldingValuation[];
   accountNames: Record<number, string>;
   categoryNames: Record<number, string>;
   currency: string;
+  weightLabel?: string;
   limit?: number;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
@@ -236,7 +238,7 @@ export function HoldingsTable({
               className="px-3 py-3 font-medium"
             />
             <SortHeader
-              label="占比"
+              label={weightLabel}
               sortKey="weight"
               activeKey={sort.key}
               dir={sort.dir}

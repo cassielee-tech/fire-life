@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPortfolio, listAccounts } from "@/db/queries";
+import { getPortfolio, listAccounts, listCategories } from "@/db/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +8,29 @@ function esc(value: string | number | null | undefined) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export async function GET() {
-  const portfolio = getPortfolio();
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const accountParam = searchParams.get("account");
+  const parsedAccountId = accountParam ? Number(accountParam) : NaN;
+  const accountId = Number.isInteger(parsedAccountId)
+    ? parsedAccountId
+    : undefined;
+
+  const categoryParam = searchParams.get("category");
+  let categoryId: number | null | undefined = undefined;
+  if (categoryParam === "none") {
+    categoryId = null;
+  } else if (categoryParam) {
+    const parsedCategoryId = Number(categoryParam);
+    if (
+      Number.isInteger(parsedCategoryId) &&
+      listCategories().some((category) => category.id === parsedCategoryId)
+    ) {
+      categoryId = parsedCategoryId;
+    }
+  }
+
+  const portfolio = getPortfolio(undefined, undefined, accountId, categoryId);
   const accounts = listAccounts();
   const accountNames = new Map(accounts.map((a) => [a.id, a.name]));
   const categoryNames = new Map(

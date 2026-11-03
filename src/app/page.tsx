@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AllocationPanel, TrendChart } from "@/components/charts";
+import { DashboardFilters } from "@/components/dashboard-filters";
 import { HoldingsTable } from "@/components/holdings-table";
 import { SyncButton } from "@/components/sync-button";
 import { Card, CardHeader, PageHeader } from "@/components/ui";
@@ -9,7 +10,6 @@ import {
   getSetting,
   latestFxPairs,
   listRealizedTrades,
-  localToday,
 } from "@/db/queries";
 import { formatMoney, formatPct, toneClass } from "@/lib/format";
 import { allocate, allocateByCategory } from "@/lib/valuation";
@@ -39,29 +39,86 @@ function Stat({
   );
 }
 
-export default function DashboardPage() {
-  const portfolio = getPortfolio();
-  const history = getHistory();
-  const accountNames = new Map(portfolio.accounts.map((a) => [a.id, a.name]));
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ account?: string; category?: string }>;
+}) {
+  const params = await searchParams;
+  const allPortfolio = getPortfolio();
+  const accountParam = params.account;
+  const parsedAccountId = accountParam ? Number(accountParam) : NaN;
+  const activeAccount = Number.isInteger(parsedAccountId)
+    ? allPortfolio.accounts.find((account) => account.id === parsedAccountId)
+    : undefined;
+  const activeAccountId = activeAccount?.id;
+
+  let categoryFilter: number | null | undefined = undefined;
+  if (params.category === "none") {
+    categoryFilter = null;
+  } else if (params.category) {
+    const parsedCategoryId = Number(params.category);
+    if (
+      Number.isInteger(parsedCategoryId) &&
+      allPortfolio.categories.some(
+        (category) => category.id === parsedCategoryId,
+      )
+    ) {
+      categoryFilter = parsedCategoryId;
+    }
+  }
+  const activeCategory =
+    categoryFilter !== null && categoryFilter !== undefined
+      ? allPortfolio.categories.find(
+          (category) => category.id === categoryFilter,
+        )
+      : undefined;
+  const categoryLabel =
+    categoryFilter === null ? "未分类" : activeCategory?.name;
+  const hasFilter =
+    activeAccount !== undefined || categoryFilter !== undefined;
+
+  const portfolio = hasFilter
+    ? getPortfolio(
+        allPortfolio.baseCurrency,
+        allPortfolio.today,
+        activeAccountId,
+        categoryFilter,
+      )
+    : allPortfolio;
+  const distributionPortfolio =
+    categoryFilter !== undefined
+      ? getPortfolio(
+          allPortfolio.baseCurrency,
+          allPortfolio.today,
+          undefined,
+          categoryFilter,
+        )
+      : allPortfolio;
+
+  const history = getHistory(activeAccountId, categoryFilter);
+  const accountNames = new Map(
+    allPortfolio.accounts.map((account) => [account.id, account.name]),
+  );
   const { summary, valuations, baseCurrency } = portfolio;
 
   const byAsset = allocate(valuations, "assetType", accountNames);
   const byCurrency = allocate(valuations, "currency", accountNames);
-  const byCategory = allocateByCategory(valuations, portfolio.categories);
+  const byCategory = allocateByCategory(valuations, allPortfolio.categories);
 
   const accountNameById: Record<number, string> = {};
-  for (const account of portfolio.accounts) {
+  for (const account of allPortfolio.accounts) {
     accountNameById[account.id] = account.name;
   }
   const categoryNameById: Record<number, string> = {};
-  for (const category of portfolio.categories) {
+  for (const category of allPortfolio.categories) {
     categoryNameById[category.id] = category.name;
   }
   const lastSync = getSetting("last_sync");
-  const today = localToday();
+  const today = portfolio.today;
   const hasData = valuations.length > 0;
 
-  const realizedTrades = listRealizedTrades();
+  const realizedTrades = listRealizedTrades(activeAccountId, categoryFilter);
   const fxPairs = latestFxPairs();
   const currentYear = portfolio.today.slice(0, 4);
   const ytdRealized = summarizeRealizedFromPairs(
@@ -71,16 +128,89 @@ export default function DashboardPage() {
     currentYear,
   );
 
+  const filterLabel =
+    [activeAccount?.name, categoryLabel].filter(Boolean).join(" · ") ||
+    "全部资产";
+  const selectedCategory =
+    categoryFilter === null ? "none" : categoryFilter ?? null;
+
+  const totalLabel =
+    activeAccount && categoryFilter === undefined
+      ? "账户总资产"
+      : categoryFilter !== undefined && !activeAccount
+        ? "分类总资产"
+        : hasFilter
+          ? "筛选总资产"
+          : "总资产";
+  const allocationLabel =
+    activeAccount && categoryFilter === undefined
+      ? "账户资产"
+      : categoryFilter !== undefined && !activeAccount
+        ? "分类资产"
+        : hasFilter
+          ? "筛选资产"
+          : "总资产";
+  const weightLabel =
+    activeAccount && categoryFilter !== undefined
+      ? "筛选内"
+      : activeAccount
+        ? "账户内"
+        : categoryFilter !== undefined
+          ? "分类内"
+          : "占比";
+
+  const exportParams = new URLSearchParams();
+  if (activeAccountId !== undefined) {
+    exportParams.set("account", String(activeAccountId));
+  }
+  if (categoryFilter !== undefined) {
+    exportParams.set(
+      "category",
+      categoryFilter === null ? "none" : String(categoryFilter),
+    );
+  }
+  const exportHref = `/api/export${
+    exportParams.toString() ? `?${exportParams.toString()}` : ""
+  }`;
+
+  const accountHref = (accountId: number | null) => {
+    const query = new URLSearchParams();
+    if (accountId !== null) query.set("account", String(accountId));
+    if (categoryFilter !== undefined) {
+      query.set(
+        "category",
+        categoryFilter === null ? "none" : String(categoryFilter),
+      );
+    }
+    return query.toString() ? `/?${query.toString()}` : "/";
+  };
+
+  const filterAccounts = allPortfolio.accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+  }));
+  const filterCategories = allPortfolio.categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+  }));
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="资产总览"
-        description={`${today} · 所有资产折算为 ${baseCurrency}`}
+        description={`${today} · ${filterLabel} · 折算为 ${baseCurrency}`}
         actions={
           <>
+            <DashboardFilters
+              key={`${activeAccountId ?? "all"}:${selectedCategory ?? "all"}`}
+              accounts={filterAccounts}
+              categories={filterCategories}
+              selectedAccountId={activeAccountId ?? null}
+              selectedCategory={selectedCategory}
+            />
             <SyncButton />
             <a
-              href="/api/export"
+              href={exportHref}
               className="rounded-lg border border-border bg-panel-2 px-3.5 py-2 text-xs text-muted transition hover:text-ink"
             >
               导出 CSV
@@ -106,12 +236,13 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Stat
-          label="总资产"
+          label={totalLabel}
           value={formatMoney(summary.totalValue, baseCurrency, 0)}
           sub={
             hasData ? (
               <>
-                {valuations.length} 笔持仓 · 成本 {formatMoney(summary.totalCost, baseCurrency, 0)}
+                {valuations.length} 笔持仓 · 成本{" "}
+                {formatMoney(summary.totalCost, baseCurrency, 0)}
               </>
             ) : (
               "还没有任何持仓"
@@ -150,7 +281,7 @@ export default function DashboardPage() {
               {" · "}
               {ytdRealized.count} 笔 ·{" "}
               <Link href="/returns" className="text-accent hover:underline">
-                明细 →
+                {hasFilter ? "全部明细" : "明细"} →
               </Link>
             </span>
           }
@@ -172,7 +303,9 @@ export default function DashboardPage() {
           sub={
             <span>
               上次同步：
-              {lastSync ? new Date(lastSync).toLocaleString("zh-CN", { hour12: false }) : "从未"}
+              {lastSync
+                ? new Date(lastSync).toLocaleString("zh-CN", { hour12: false })
+                : "从未"}
             </span>
           }
         />
@@ -182,21 +315,30 @@ export default function DashboardPage() {
         <Card className="xl:col-span-2">
           <CardHeader
             title="资产配置"
-            subtitle="按资产类型或自定义分类"
+            subtitle={
+              hasFilter
+                ? `${filterLabel} · 按资产类型或自定义分类`
+                : "按资产类型或自定义分类"
+            }
           />
           <AllocationPanel
             byAsset={byAsset}
             byCategory={byCategory}
             currency={baseCurrency}
             total={summary.totalValue}
-            hasCategories={portfolio.categories.length > 0}
+            hasCategories={allPortfolio.categories.length > 0}
+            totalLabel={allocationLabel}
           />
         </Card>
 
         <Card className="xl:col-span-3">
           <CardHeader
             title="资产走势"
-            subtitle={`最近 ${history.length} 个快照日`}
+            subtitle={
+              hasFilter
+                ? `${filterLabel} · 最近 ${history.length} 个快照日`
+                : `最近 ${history.length} 个快照日`
+            }
             action={
               <Link href="/history" className="text-xs text-muted hover:text-ink">
                 查看历史 →
@@ -210,7 +352,11 @@ export default function DashboardPage() {
       <Card>
         <CardHeader
           title="持仓明细"
-          subtitle="点击表头排序 · 默认按市值"
+          subtitle={
+            hasFilter
+              ? `${filterLabel} · 点击表头排序`
+              : "点击表头排序 · 默认按市值"
+          }
           action={
             <Link href="/holdings" className="text-xs text-muted hover:text-ink">
               管理持仓 →
@@ -222,6 +368,7 @@ export default function DashboardPage() {
           accountNames={accountNameById}
           categoryNames={categoryNameById}
           currency={baseCurrency}
+          weightLabel={weightLabel}
         />
       </Card>
 
@@ -254,28 +401,56 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader title="账户分布" subtitle="按账户汇总" />
+          <CardHeader
+            title="账户分布"
+            subtitle={
+              categoryLabel
+                ? `按账户汇总 · ${categoryLabel}`
+                : "点击账户切换筛选"
+            }
+            action={
+              activeAccount ? (
+                <Link
+                  href={accountHref(null)}
+                  className="text-xs text-muted hover:text-ink"
+                >
+                  全部账户
+                </Link>
+              ) : undefined
+            }
+          />
           <div className="divide-y divide-border/50">
-            {portfolio.accounts.length === 0 ? (
+            {allPortfolio.accounts.length === 0 ? (
               <p className="px-5 py-6 text-xs text-muted">还没有账户。</p>
             ) : (
-              portfolio.accounts.map((account) => {
-                const value = valuations
-                  .filter((v) => v.accountId === account.id)
-                  .reduce((s, v) => s + v.marketValue, 0);
+              allPortfolio.accounts.map((account) => {
+                const value = distributionPortfolio.valuations
+                  .filter((valuation) => valuation.accountId === account.id)
+                  .reduce((sum, valuation) => sum + valuation.marketValue, 0);
+                const selected = account.id === activeAccountId;
                 return (
-                  <div
+                  <Link
                     key={account.id}
-                    className="flex items-center justify-between px-5 py-3 text-sm"
+                    href={accountHref(selected ? null : account.id)}
+                    className={`flex items-center justify-between px-5 py-3 text-sm transition ${
+                      selected ? "bg-accent/10" : "hover:bg-panel-2/50"
+                    }`}
                   >
                     <div>
-                      <div className="font-medium">{account.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{account.name}</span>
+                        {selected ? (
+                          <span className="text-[10px] text-accent">当前</span>
+                        ) : null}
+                      </div>
                       <div className="text-[11px] text-muted">
                         {account.institution || "—"} · {account.currency}
                       </div>
                     </div>
-                    <div className="num text-sm">{formatMoney(value, baseCurrency, 0)}</div>
-                  </div>
+                    <div className="num text-sm">
+                      {formatMoney(value, baseCurrency, 0)}
+                    </div>
+                  </Link>
                 );
               })
             )}

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, type SQL } from "drizzle-orm";
 import { db, sqlite } from "./index";
 import {
   accounts,
@@ -153,13 +153,27 @@ export function deleteAccount(id: number): boolean {
   return db.delete(accounts).where(eq(accounts.id, id)).run().changes > 0;
 }
 
-export function listHoldings(accountId?: number): Holding[] {
-  const active = isNull(holdings.closedAt);
-  const where =
-    accountId !== undefined
-      ? and(eq(holdings.accountId, accountId), active)
-      : active;
-  return db.select().from(holdings).where(where).orderBy(asc(holdings.id)).all();
+export function listHoldings(
+  accountId?: number,
+  categoryId?: number | null,
+): Holding[] {
+  const conditions: SQL[] = [isNull(holdings.closedAt)];
+  if (accountId !== undefined) {
+    conditions.push(eq(holdings.accountId, accountId));
+  }
+  if (categoryId !== undefined) {
+    conditions.push(
+      categoryId === null
+        ? isNull(holdings.categoryId)
+        : eq(holdings.categoryId, categoryId),
+    );
+  }
+  return db
+    .select()
+    .from(holdings)
+    .where(and(...conditions))
+    .orderBy(asc(holdings.id))
+    .all();
 }
 
 export function getHolding(id: number): Holding | undefined {
@@ -243,10 +257,29 @@ export type SellInput = {
   creditCash: boolean;
 };
 
-export function listRealizedTrades(): RealizedTrade[] {
-  return db
-    .select()
-    .from(realizedTrades)
+export function listRealizedTrades(
+  accountId?: number,
+  categoryId?: number | null,
+): RealizedTrade[] {
+  const conditions: SQL[] = [];
+  if (accountId !== undefined) {
+    conditions.push(eq(realizedTrades.accountId, accountId));
+  }
+  if (categoryId !== undefined) {
+    conditions.push(
+      categoryId === null
+        ? isNull(realizedTrades.categoryId)
+        : eq(realizedTrades.categoryId, categoryId),
+    );
+  }
+  const query = db.select().from(realizedTrades);
+  if (conditions.length > 0) {
+    return query
+      .where(and(...conditions))
+      .orderBy(desc(realizedTrades.sellDate), desc(realizedTrades.id))
+      .all();
+  }
+  return query
     .orderBy(desc(realizedTrades.sellDate), desc(realizedTrades.id))
     .all();
 }
@@ -533,6 +566,10 @@ export function setSetting(key: string, value: string) {
     .run();
 }
 
+export function deleteSetting(key: string) {
+  db.delete(settings).where(eq(settings.key, key)).run();
+}
+
 export function getBaseCurrency(): string {
   return getSetting("base_currency") ?? "CNY";
 }
@@ -684,9 +721,14 @@ export function localToday(timeZone = "Asia/Shanghai"): string {
   }).format(new Date());
 }
 
-export function getPortfolio(baseCurrency = getBaseCurrency(), today = localToday()): Portfolio {
+export function getPortfolio(
+  baseCurrency = getBaseCurrency(),
+  today = localToday(),
+  accountId?: number,
+  categoryId?: number | null,
+): Portfolio {
   const accountRows = listAccounts();
-  const holdingRows = listHoldings();
+  const holdingRows = listHoldings(accountId, categoryId);
   const quotes = latestQuotes();
   const fx = latestFxPairs();
   const valuations = valuateAll(
@@ -729,13 +771,41 @@ export type HistoryPoint = {
   dayChange: number;
 };
 
-export function getHistory(): HistoryPoint[] {
+export function getHistory(
+  accountId?: number,
+  categoryId?: number | null,
+): HistoryPoint[] {
+  const conditions: string[] = [];
+  const params: number[] = [];
+  if (accountId !== undefined) {
+    conditions.push("h.account_id = ?");
+    params.push(accountId);
+  }
+  if (categoryId !== undefined) {
+    if (categoryId === null) {
+      conditions.push("h.category_id IS NULL");
+    } else {
+      conditions.push("h.category_id = ?");
+      params.push(categoryId);
+    }
+  }
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const rows = sqlite
     .prepare(
-      `SELECT date, SUM(market_value) AS value, SUM(cost) AS cost, SUM(day_change) AS day_change
-       FROM valuations GROUP BY date ORDER BY date ASC`,
+      `SELECT v.date, SUM(v.market_value) AS value, SUM(v.cost) AS cost,
+              SUM(v.day_change) AS day_change
+       FROM valuations v
+       JOIN holdings h ON h.id = v.holding_id
+       ${where}
+       GROUP BY v.date ORDER BY v.date ASC`,
     )
-    .all() as Array<{ date: string; value: number; cost: number; day_change: number }>;
+    .all(...params) as Array<{
+    date: string;
+    value: number;
+    cost: number;
+    day_change: number;
+  }>;
   return rows.map((r) => ({
     date: r.date,
     value: r.value,

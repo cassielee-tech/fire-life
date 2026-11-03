@@ -25,6 +25,10 @@ import {
   calculateFire,
   type FireInput,
 } from "@/lib/fire";
+import {
+  formatFirePlanSavedAt,
+  type FirePlan,
+} from "@/lib/fire-plan";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/60 focus:border-accent/60";
@@ -67,19 +71,47 @@ export function FireCalculator({
   currentAssets,
   currency,
   today,
+  initialPlan,
 }: {
   currentAssets: number;
   currency: string;
   today: string;
+  initialPlan: FirePlan | null;
 }) {
+  const matchingPlan =
+    initialPlan && initialPlan.currency === currency ? initialPlan : null;
+
   const [assets, setAssets] = useState(String(Math.round(currentAssets)));
-  const [target, setTarget] = useState("");
-  const [income, setIncome] = useState("");
-  const [expense, setExpense] = useState("");
-  const [annualReturnPct, setAnnualReturnPct] = useState("6");
-  const [considerInflation, setConsiderInflation] = useState(false);
-  const [inflationPct, setInflationPct] = useState("2.5");
-  const [age, setAge] = useState("");
+  const [target, setTarget] = useState(
+    matchingPlan ? String(matchingPlan.target) : "",
+  );
+  const [income, setIncome] = useState(
+    matchingPlan ? String(matchingPlan.income) : "",
+  );
+  const [expense, setExpense] = useState(
+    matchingPlan ? String(matchingPlan.expense) : "",
+  );
+  const [annualReturnPct, setAnnualReturnPct] = useState(
+    matchingPlan ? String(matchingPlan.annualReturnPct) : "6",
+  );
+  const [considerInflation, setConsiderInflation] = useState(
+    matchingPlan ? matchingPlan.considerInflation : false,
+  );
+  const [inflationPct, setInflationPct] = useState(
+    matchingPlan ? String(matchingPlan.inflationPct) : "2.5",
+  );
+  const [age, setAge] = useState(
+    matchingPlan && matchingPlan.age !== null ? String(matchingPlan.age) : "",
+  );
+  const [savedAt, setSavedAt] = useState<string | null>(
+    initialPlan?.savedAt ?? null,
+  );
+  const [savedCurrency, setSavedCurrency] = useState<string | null>(
+    initialPlan?.currency ?? null,
+  );
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const currentAssetsValue = Math.max(0, Number(assets || 0));
   const targetValue = Math.max(0, Number(target || 0));
@@ -104,6 +136,8 @@ export function FireCalculator({
   const scenarios = targetValue > 0 ? buildFireScenarios(input) : [];
   const chartData = result?.points ?? [];
   const expenseWarning = expenseValue > incomeValue;
+  const currencyMismatch =
+    savedCurrency !== null && savedCurrency !== currency;
 
   const headline = !result
     ? "输入目标后开始计算"
@@ -114,6 +148,68 @@ export function FireCalculator({
         : result.reason === "no_savings_no_growth"
           ? "按当前参数无法达成"
           : "60 年内无法达成";
+
+  async function savePlan() {
+    setSaveError(null);
+    setSaveMessage(null);
+    if (!(targetValue > 0)) {
+      setSaveError("请先填写目标金额");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/fire-plan", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currency,
+          target: targetValue,
+          income: incomeValue,
+          expense: expenseValue,
+          annualReturnPct: Number(annualReturnPct || 0),
+          considerInflation,
+          inflationPct: Number(inflationPct || 0),
+          age: currentAge,
+        }),
+      });
+      const data = (await response.json()) as {
+        plan?: FirePlan;
+        error?: string;
+      };
+      if (!response.ok || !data.plan) {
+        throw new Error(data.error ?? "保存失败");
+      }
+      setSavedAt(data.plan.savedAt);
+      setSavedCurrency(data.plan.currency);
+      setSaveMessage("方案已保存");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearPlan() {
+    if (!window.confirm("确认清除已保存的 FIRE 方案？")) return;
+    setSaving(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const response = await fetch("/api/fire-plan", { method: "DELETE" });
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        throw new Error(data.error ?? "清除失败");
+      }
+      setSavedAt(null);
+      setSavedCurrency(null);
+      setSaveMessage("已清除保存");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "清除失败");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
@@ -250,6 +346,48 @@ export function FireCalculator({
 
         <div className="mt-4 rounded-lg border border-border/60 bg-panel-2/50 px-3 py-2 text-[10px] leading-relaxed text-muted">
           假设：每月月末投入、按月复利；不考虑税费、波动和收入增长。
+        </div>
+
+        <div className="mt-3 border-t border-border/60 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[10px] text-muted">
+              {savedAt
+                ? `已保存于 ${formatFirePlanSavedAt(savedAt)}`
+                : "尚未保存方案"}
+            </div>
+            <div className="flex items-center gap-2">
+              {savedAt ? (
+                <button
+                  type="button"
+                  onClick={() => void clearPlan()}
+                  disabled={saving}
+                  className="text-[11px] text-muted transition hover:text-ink disabled:opacity-50"
+                >
+                  清除保存
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void savePlan()}
+                disabled={saving}
+                className="rounded-lg border border-accent/40 bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/25 disabled:opacity-50"
+              >
+                {saving ? "保存中…" : "保存方案"}
+              </button>
+            </div>
+          </div>
+          {currencyMismatch ? (
+            <p className="mt-1.5 text-[10px] leading-relaxed text-gold">
+              已保存方案使用 {savedCurrency}，当前计价货币为 {currency}；
+              切换回 {savedCurrency} 后自动恢复，或直接保存覆盖。
+            </p>
+          ) : null}
+          {saveMessage ? (
+            <p className="mt-1.5 text-[10px] text-loss">{saveMessage}</p>
+          ) : null}
+          {saveError ? (
+            <p className="mt-1.5 text-[10px] text-gain">{saveError}</p>
+          ) : null}
         </div>
       </Card>
 

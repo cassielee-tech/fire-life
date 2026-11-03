@@ -32,10 +32,12 @@ export function AllocationDonut({
   data,
   currency,
   total,
+  totalLabel = "总资产",
 }: {
   data: Allocation[];
   currency: string;
   total: number;
+  totalLabel?: string;
 }) {
   if (data.length === 0) {
     return <div className="px-5 py-16 text-center text-sm text-muted">还没有持仓数据</div>;
@@ -68,7 +70,9 @@ export function AllocationDonut({
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="text-center">
-            <div className="text-[10px] uppercase tracking-widest text-muted">总资产</div>
+            <div className="text-[10px] uppercase tracking-widest text-muted">
+              {totalLabel}
+            </div>
             <div className="num mt-0.5 text-lg font-semibold">
               {formatCompact(total, currency)}
             </div>
@@ -101,12 +105,14 @@ export function AllocationPanel({
   currency,
   total,
   hasCategories,
+  totalLabel = "总资产",
 }: {
   byAsset: Allocation[];
   byCategory: Allocation[];
   currency: string;
   total: number;
   hasCategories: boolean;
+  totalLabel?: string;
 }) {
   const [view, setView] = useState<"asset" | "category">("asset");
   const data = view === "asset" ? byAsset : byCategory;
@@ -143,7 +149,12 @@ export function AllocationPanel({
           </Link>
         </div>
       ) : (
-        <AllocationDonut data={data} currency={currency} total={total} />
+        <AllocationDonut
+          data={data}
+          currency={currency}
+          total={total}
+          totalLabel={totalLabel}
+        />
       )}
     </div>
   );
