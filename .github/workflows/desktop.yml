@@ -30,7 +30,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           pnpm desktop:prepare
-          pnpm exec electron-builder --mac --arm64 --x64
+          pnpm exec electron-builder --mac --arm64 --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:
@@ -58,7 +58,7 @@ jobs:
       - name: Build installer
         run: |
           pnpm desktop:prepare
-          pnpm exec electron-builder --win --x64
+          pnpm exec electron-builder --win --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:

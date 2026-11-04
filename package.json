@@ -8,7 +8,7 @@
     "desktop:dev": "concurrently -k \"next dev -p 3100\" \"wait-on http://127.0.0.1:3100 && cross-env ELECTRON_DEV_URL=http://127.0.0.1:3100 electron .\"",
     "desktop:prepare": "node scripts/prepare-desktop.mjs",
     "desktop:pack": "node scripts/prepare-desktop.mjs && electron-builder --dir",
-    "desktop:dist": "node scripts/prepare-desktop.mjs && electron-builder",
+    "desktop:dist": "node scripts/prepare-desktop.mjs && electron-builder --publish never",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
