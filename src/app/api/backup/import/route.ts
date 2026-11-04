@@ -1,6 +1,6 @@
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { sqlite } from "@/db";
+import { dbPath, sqlite } from "@/db";
 import { restoreBackup, writePreImportBackup } from "@/db/backup";
 import { MAX_BACKUP_BYTES, validateBackup } from "@/lib/backup";
 
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
   }
 
-  const backupDir = path.join(process.cwd(), "data", "backups");
+  const backupDir = path.join(path.dirname(dbPath), "backups");
   let backupFile: string;
   try {
     backupFile = writePreImportBackup(sqlite, backupDir);
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       counts: result.counts,
-      backupFile: path.relative(process.cwd(), backupFile),
+      backupFile: path.basename(backupFile),
     });
   } catch (err) {
     return NextResponse.json(
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         error: `导入失败，数据库已回滚：${
           err instanceof Error ? err.message : String(err)
         }`,
-        backupFile: path.relative(process.cwd(), backupFile),
+        backupFile: path.basename(backupFile),
       },
       { status: 500 },
     );

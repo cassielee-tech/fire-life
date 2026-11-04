@@ -51,7 +51,7 @@ Fire Life 把分散在银行、券商、海外账户里的现金、存款、理�
 
 ## 快速开始
 
-要求：Node.js 20+、pnpm 10+。
+要求：Node.js 22+、pnpm 10+。
 
 ```bash
 git clone <your-repo-url>
@@ -71,6 +71,49 @@ pnpm start
 ```
 
 > 本地数据库默认位于 `data/fire-life.db`，已被 `.gitignore` 忽略。可以通过 `DATABASE_PATH` 环境变量指定其他 SQLite 文件。
+
+## 桌面版（macOS / Windows）
+
+不想配置 Node 环境时，可以直接从 Releases 下载安装包：
+
+- macOS：`.dmg`，提供 Apple Silicon（arm64）与 Intel（x64）两个版本
+- Windows：`.exe`，x64
+
+首次启动会在系统用户数据目录创建本地数据库，并写入一套虚构的演示数据（约 200 万资产）。可以在「数据」页导入自己的 JSON 备份，覆盖演示数据。
+
+安装包暂未做代码签名与公证：
+
+- macOS 首次打开如果被拦截，请右键应用选择「打开」，或执行：
+  ```bash
+  xattr -dr com.apple.quarantine "/Applications/Fire Life.app"
+  ```
+- Windows 会提示 SmartScreen，点击「更多信息」→「仍要运行」。
+
+数据与日志位置：
+
+- macOS：`~/Library/Application Support/Fire Life/data/fire-life.db`
+- Windows：`%APPDATA%\Fire Life\data\fire-life.db`
+
+应用菜单「文件 → 打开数据目录」可以直接定位到该文件夹。
+
+### 本地构建桌面安装包
+
+```bash
+pnpm install
+pnpm desktop:dev    # 开发模式：Next dev + Electron 窗口
+pnpm desktop:pack   # 免安装目录，产物在 release/
+pnpm desktop:dist   # dmg / zip / exe 安装包
+```
+
+> `desktop:dev` 使用 3100 端口。Next.js 16 同一目录只允许运行一个开发服务，执行前请先停止 `pnpm dev`。
+
+国内网络下载 Electron 较慢时可以设置镜像：
+
+```bash
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ pnpm desktop:dist
+```
+
+桌面版使用 Electron 承载打包后的 Next.js standalone 服务，数据库仍然是本机 SQLite 文件，不依赖云端。推送 `v*` 标签会触发 GitHub Actions 构建三平台安装包并发布到 Release。
 
 ## English Overview
 

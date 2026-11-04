@@ -208,7 +208,7 @@ export function BackupManager({
                 <CountGrid counts={previewCounts} />
                 <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[11px] leading-relaxed text-gold">
                   导入会清空当前全部数据并还原这份备份。导入前会自动把当前数据保存到
-                  data/backups/。
+                  数据库目录下的 backups/ 文件夹。
                 </div>
                 <label className="flex items-center gap-2 text-xs text-muted">
                   <input
@@ -239,7 +239,7 @@ export function BackupManager({
                   {success.counts.realized_trades} 等数据。
                 </div>
                 <div className="mt-1 break-all text-[10px] text-muted">
-                  导入前备份：{success.backupFile}
+                  导入前备份：backups/{success.backupFile}
                 </div>
                 <button
                   type="button"
@@ -262,7 +262,9 @@ export function BackupManager({
           <p>
             备份文件包含完整财务数据，请妥善保存；主题偏好在浏览器本地，不包含在备份中。
           </p>
-          <p>导入失败时数据库会回滚，导入前备份仍保留在 data/backups/。</p>
+          <p>
+            导入失败时数据库会回滚，导入前备份仍保留在数据库目录的 backups/ 文件夹。
+          </p>
         </div>
       </Card>
     </div>
